@@ -1,38 +1,66 @@
 version: 2
 jobs:
-  build:
-    docker:
-      - image: circleci/python:3.6.1
+    build:
+        docker:
+            - image: ubuntu:16.04
+        environment:
+            LC_ALL: C.UTF-8
+            LANG: C.UTF-8
+        steps:
+            - run:
+                name: install git
+                command: |
+                    apt-get update
+                    apt-get install -y git
+            - checkout
+            - run:
+                name: install dependencies
+                command: |
+                    apt-get install -y software-properties-common
+                    add-apt-repository -y ppa:ethereum/ethereum
+                    apt-get update
+                    apt-get install -y solc
+                    apt-get install -y python3-venv
+                    apt-get install -y python3-dev
+                    apt-get install -y libssl-dev
+                    apt-get install -y g++
+                    apt-get install -y telnet
+                    apt-get install -y ethereum=1.7.3*
+                     python3 -m venv venv
+                    . venv/bin/activate
 
-    steps:
-      - run:
-          name: install System dependency and active python venv
-          command: |
-            sudo apt-get install software-properties-common
-            sudo add-apt-repository ppa:mc3man/trusty-media -y
-            sudo add-apt-repository ppa:ethereum/ethereum -y
-            sudo apt-get update
-            sudo apt-get install -y solc
-            sudo apt-get install -y python3-venv
-            sudo apt-get install -y python3-dev
-            sudo apt-get install -y libssl-dev
-            sudo apt-get install -y g++
-            sudo apt-get install -y git
-            sudo apt-get install ffmpeg -qqy
-            sudo apt-get install -y ethereum=1.7.3*
-            python3 -m venv venv
-            . venv/bin/activate
+            - run:
+                name: build private blockchain network
+                command: |
+                    mkdir -p ./ethereum
+                    geth --datadir ./ethereum init ./ethereum/genesis.json
 
-      - checkout
+            - run:
+                name: run private blockchain node with geth on local
+                command: geth --datadir ./ethereum --networkid 114 --port 10303 --rpc --rpcaddr 127.0.0.1 --rpcport 18545 --rpcapi db,eth,net,web3,personal,web3,admin,txpool --rpccorsdomain * --nodiscover --maxpeers 0
+                background: true
+
+            - run:
+                name: Python dependency installation
+                command: |
+                    . venv/bin/activate
+                    pip install --upgrade setuptools
+                    pip install --upgrade pip
+                    pip install -r requirements.txt
 
 
-      - run:
-          name: Python dependency installation
-          command: |
-            . venv/bin/activate
-            python -m pip install --upgrade setuptools
-            python -m pip install --upgrade pip
-            python -m pip install -r requirements.txt
-            python --version
-            pip --version
-            python -m pip --version
+            - run:
+                name: geth RPC Test
+                command: |
+                    sleep 5
+                    telnet 127.0.0.1 18545
+                    echo '{"jsonrpc":"2.0","method":"modules","params":[],"id":1}' | telnet 127.0.0.1 18545
+                background: true
+
+            - run:
+                name: run tests
+                command: |
+                    . venv/bin/activate
+                    python --version
+                    python3 --version
+                    
